@@ -1,0 +1,458 @@
+/* RESET ET BASES */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f5f7fa;
+  overflow-x: hidden;
+}
+
+/* STRUCTURE PRINCIPALE */
+.home-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.home-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0 2rem;
+  margin: 0 auto;
+  overflow-y: auto;
+  max-height: 100vh;
+}
+
+/* EN-TÊTE */
+.welcome-header {
+  text-align: center;
+  padding: 2rem;
+  background: #1e3a8a;
+  color: white;
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+.welcome-header h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* CONTENU PRINCIPAL */
+.main-content {
+  /*flex: 1;*/
+  overflow-y: auto;
+  flex-grow: 1;
+  width: 100%;
+  padding: 0 0 2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+/* SECTION RÈGLES */
+.rules-section {
+  margin-bottom: 3rem;
+  width: 100%;
+}
+
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.rule-card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  border-left: 4px solid #3b82f6;
+  height: 100%;
+}
+
+.rule-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.rule-display {
+  font-weight: 500;
+  margin-bottom: 1rem;
+  flex-grow: 1;
+}
+
+.details-btn {
+  background: #3b82f6;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  align-self: flex-start;
+}
+
+.details-btn:hover {
+  background: #2563eb;
+}
+
+/* SECTION SCÉNARIOS */
+.scenarios-section {
+  margin-top: 2rem;
+  width: 100%;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.scenarios-horizontal-list {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+.scenario-item {
+  padding: 0.75rem 1.5rem;
+  background: white;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.scenario-item:hover {
+  background: #e0f2fe;
+}
+
+.scenario-item.selected {
+  background: #3b82f6;
+  color: white;
+}
+
+/* MODALE */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+}
+
+.modal-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 900px;   /* taille compacte */
+  width: 900px;
+  height: 50%;;
+  max-height: 75vh;
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  overflow: hidden;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-panel {
+  padding: 1rem;
+  overflow-y: auto;
+  flex: 1;
+  border-radius: 0.5rem;
+  max-width: 900px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+
+.modal-content {
+  padding: 1.5rem;
+}
+
+.modal-section {
+  margin-bottom: 1.5rem;
+}
+
+.modal-section h4 {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.close-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  cursor: pointer;
+  color: #555;
+  transition: color 0.2s ease;
+}
+
+.close-icon:hover {
+  color: #1e40af;
+}
+
+/* CHARGEMENT ET ERREUR */
+.loading-container, .error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+}
+
+.spinner {
+  border: 4px solid rgba(0,0,0,0.1);
+  border-left-color: #3b82f6;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message {
+  color: #dc2626;
+  margin-bottom: 1rem;
+}
+
+.retry-btn {
+  background: #3b82f6;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ARBRE VISUALISATION */
+.tree-container {
+  width: 100%;
+  height: 600px; /* Hauteur augmentée */
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background-color: white;
+  position: relative;
+  margin: 1rem 0;
+  overflow: hidden; /* Changé de 'auto' à 'hidden' */
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .home-container {
+    padding: 0 1rem;
+  }
+
+  .rules-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* Styles spécifiques pour l'arbre */
+.tree-node-text {
+  font-size: 12px;
+  font-weight: bold;
+  fill: white;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none; /* Le texte ne bloque pas les clics */
+}
+
+.tree-node {
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+
+.tree-node:hover {
+  filter: brightness(1.1);
+}
+/* TABLEAUX DANS LES MODALES */
+.property-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.property-table th, .property-table td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.property-table th {
+  background-color: #f1f5f9;
+  font-weight: 500;
+}
+
+.property-table tr:hover td {
+  background-color: #f8fafc;
+}
+
+/* NOEUDS DE L'ARBRE */
+.rd3t-node {
+  cursor: pointer !important;
+}
+
+.rd3t-node rect {
+  transition: filter 0.2s ease;
+}
+
+.rd3t-node:hover rect {
+  filter: brightness(1.1);
+}
+
+/* DESACTIVER LE DRAG */
+.rd3t-tree-container {
+  cursor: default !important;
+}
+
+/* ZOOM CONTROLS (cachés) */
+.rd3t-zoom {
+  display: none !important;
+}
+/* Styles pour les cartes de règles */
+.rule-card {
+  transition: all 0.3s ease;
+  position: relative;
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.rule-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background-color: #f8fafc;
+}
+
+.rule-display {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Menu contextuel */
+.context-menu {
+  position: fixed;
+  background: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  z-index: 1000;
+  border-radius: 4px;
+  padding: 5px 0;
+}
+
+.context-menu-item {
+  padding: 8px 15px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.context-menu-item:hover {
+  background-color: #f1f5f9;
+}
+
+/* Grille des règles */
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* Autres styles existants... */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+
+.properties-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.property-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.property-table th, .property-table td {
+  padding: 8px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.property-key {
+  font-weight: bold;
+}
+
+.close-icon {
+  width: 24px;
+  height: 24px;
+}
+.node-content {
+  color: white;
+  padding: 5px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.node-name {
+  font-weight: bold;
+  margin-bottom: 5px;
+  word-break: break-word;
+}
+
+.node-type {
+  font-size: 0.8em;
+  opacity: 0.9;
+}
+.scenario19-large-tree {
+  margin-top: 2rem;
+  min-height: 700px;
+}
+
