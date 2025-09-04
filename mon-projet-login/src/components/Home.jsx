@@ -12,7 +12,6 @@ const Home = () => {
   const [error, setError] = useState(null);
 
   const [selectedRule, setSelectedRule] = useState(null);
-  //const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDefineModalOpen, setIsDefineModalOpen] = useState(false);
   const [inputValues, setInputValues] = useState({});
@@ -27,6 +26,24 @@ const Home = () => {
   const [isFunctionModalOpen, setIsFunctionModalOpen] = useState(false);
 
   const treeContainerRef = useRef();
+
+  // Trouver le dernier scénario avec un artefact
+  const findLastScenarioWithArtefact = (scenarios) => {
+    const validScenarios = scenarios.filter(scenario => 
+      scenario.rootServiceName !== "Aucun artefact.xml trouvé" && 
+      scenario.rootServiceName
+    );
+    
+    if (validScenarios.length === 0) return null;
+    
+    return validScenarios.sort((a, b) => {
+      const numA = parseInt(a.scenarioId.replace('scenario', '')) || 0;
+      const numB = parseInt(b.scenarioId.replace('scenario', '')) || 0;
+      return numB - numA;
+    })[0];
+  };
+
+  const lastScenarioWithArtefact = findLastScenarioWithArtefact(scenarios);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,13 +62,6 @@ const Home = () => {
 
         setRules(rulesData);
         setScenarios(scenariosData);
-        
-        console.log("Scénarios chargés:", scenariosData);
-        const scenario19 = scenariosData.find(s => s.scenarioId === 'scenario19');
-        if (scenario19) {
-          console.log("Scenario 19 brut:", scenario19);
-          console.log("Scenario 19 transformé:", transformScenarioToTree(scenario19));
-        }
       } catch (err) {
         console.error('Erreur détaillée:', err);
         setError(err.message);
@@ -88,56 +98,46 @@ const Home = () => {
       setInputTypes({});
     }
   };
+const transformScenarioToTree = (scenario) => {
+  if (!scenario) return null;
 
-  const transformScenarioToTree = (scenario) => {
-    if (!scenario) return null;
-
-    const seenNodes = new Set();
-    const seenFunctions = new Set();
-
-    const buildNode = (node) => {
-      if (!node) return null;
-      
-      const nodeKey = `${node.name}-${node.type || 'function'}`;
-      if (seenNodes.has(nodeKey)) return null;
-      seenNodes.add(nodeKey);
-
-      if (!node.type && seenFunctions.has(node.name)) return null;
-      if (!node.type) seenFunctions.add(node.name);
-
-      const children = node.children
-        ?.map(buildNode)
-        .filter(Boolean) || [];
-
-      return {
-        name: node.name,
-        attributes: {
-          type: node.type || 'function'
-        },
-        nodeData: {
-          ...node,
-          inputs: node.inputs || {},
-          outputs: node.outputs || {}
-        },
-        children: children.length ? children : undefined
-      };
-    };
-
-    const rootNode = {
-      name: scenario.rootServiceName,
+  const buildNode = (node, depth = 0) => {
+    if (!node) return null;
+    
+    // Pour les nœuds enfants, on ne montre pas les doublons au même niveau
+    // On regroupe par nom et type
+    const nodeKey = `${node.name}-${node.type}`;
+    
+    return {
+      name: node.name || 'Sans nom',
       attributes: {
-        type: scenario.rootServiceType || 'composite'
+        type: node.type || 'simple'
       },
       nodeData: {
-        inputs: scenario.rootInputs || {},
-        outputs: scenario.rootOutputs || {}
+        ...node,
+        inputs: node.inputs || {},
+        outputs: node.outputs || {}
       },
-      children: scenario.childServices?.map(buildNode).filter(Boolean) || []
+      // Pour les enfants, on évite les doublons directs
+      children: depth > 0 ? [] : (node.children?.map(child => buildNode(child, depth + 1)).filter(Boolean) || [])
     };
-
-    console.log("Arbre généré:", rootNode);
-    return rootNode;
   };
+
+  const rootNode = {
+    name: scenario.rootServiceName || 'Scénario sans nom',
+    attributes: {
+      type: scenario.rootServiceType || 'composite'
+    },
+    nodeData: {
+      inputs: scenario.rootInputs || {},
+      outputs: scenario.rootOutputs || {}
+    },
+    children: scenario.childServices?.map(child => buildNode(child, 1)).filter(Boolean) || []
+  };
+
+  console.log("Arbre généré sans doublons:", rootNode);
+  return rootNode;
+};
 
   const formatRuleDisplay = (rule) => {
     const gInputs = rule.globalInputs?.map(input => input.name).join(', ') || 'aucune';
@@ -157,17 +157,17 @@ const Home = () => {
   };
 
   const openRuleDetails = async (rule, mode = 'details') => {
-  setSelectedRule(rule);
-  await fetchInputTypes(rule.ruleId);
-  
-  if (mode === 'details') {
-    setIsDetailsModalOpen(true);
-  } else {
-    setIsDefineModalOpen(true);
-    setInputValues({});
-    setFiles({});
-  }
-};
+    setSelectedRule(rule);
+    await fetchInputTypes(rule.ruleId);
+    
+    if (mode === 'details') {
+      setIsDetailsModalOpen(true);
+    } else {
+      setIsDefineModalOpen(true);
+      setInputValues({});
+      setFiles({});
+    }
+  };
 
   const handleRuleRightClick = (e, rule) => {
     e.preventDefault();
@@ -217,7 +217,7 @@ const Home = () => {
       if (response.ok) {
         const result = await response.json();
         alert('Exécution réussie! Résultat: ' + JSON.stringify(result));
-        setIsRuleModalOpen(false);
+        setIsDefineModalOpen(false);
       } else {
         const errorText = await response.text();
         throw new Error(errorText || "Erreur lors de l'exécution");
@@ -235,9 +235,28 @@ const Home = () => {
   };
 
   const renderCustomNode = ({ nodeDatum }) => {
-    const isFunction = nodeDatum.attributes.type === 'function';
-    const fillColor = isFunction ? "#3b82f6" : "#38b2ac";
+    const nodeType = nodeDatum.attributes.type;
     const nodeData = nodeDatum.nodeData || {};
+    
+    // Vérifier si le nœud a des valeurs définies
+    const hasInputValues = nodeData.inputs && Object.values(nodeData.inputs).some(val => val && val.trim() !== '');
+    const hasOutputValues = nodeData.outputs && Object.values(nodeData.outputs).some(val => val && val.trim() !== '');
+    const hasValues = hasInputValues || hasOutputValues;
+    
+    // Couleurs différentes selon le type de service et la présence de valeurs
+    const getNodeColor = (type, hasValues) => {
+      if (!hasValues) return '#000000'; // Noir pour les nœuds sans valeurs
+      
+      const typeColors = {
+        'composite': '#38b2ac',
+        'simple': '#3b82f6',
+        'function': '#8b5cf6',
+        'default': '#94a3b8'
+      };
+      return typeColors[type] || typeColors.default;
+    };
+
+    const fillColor = getNodeColor(nodeType, hasValues);
 
     const handleClick = (e) => {
       e.stopPropagation();
@@ -247,10 +266,10 @@ const Home = () => {
     return (
       <g onClick={handleClick} style={{ cursor: 'pointer' }}>
         <rect
-          width="180"
-          height="80"
-          x="-90"
-          y="-40"
+          width="200"
+          height="100"
+          x="-100"
+          y="-50"
           rx="10"
           ry="10"
           fill={fillColor}
@@ -258,10 +277,10 @@ const Home = () => {
           strokeWidth="2"
         />
         <foreignObject
-          x="-85"
-          y="-35"
-          width="170"
-          height="70"
+          x="-95"
+          y="-45"
+          width="190"
+          height="90"
           style={{ pointerEvents: 'none' }}
         >
           <div style={{
@@ -275,21 +294,29 @@ const Home = () => {
             textAlign: 'center',
             wordBreak: 'break-word',
             padding: '5px',
-            lineHeight: '1.4'
+            lineHeight: '1.4',
+            overflow: 'hidden'
           }}>
-            <div style={{ marginBottom: '4px' }}>{nodeDatum.name}</div>
+            <div style={{ 
+              marginBottom: '4px',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>{nodeDatum.name}</div>
             <div style={{
               fontSize: '10px',
               fontWeight: 'normal',
-              opacity: 0.9
+              opacity: 0.9,
+              marginBottom: '4px'
             }}>
-              {isFunction ? 'Fonction' : 'Composite'}
-              {isFunction && (
-                <span>
-                  <br />
-                  {Object.keys(nodeData.inputs || {}).length} entrées / {Object.keys(nodeData.outputs || {}).length} sorties
-                </span>
-              )}
+              Type: {nodeType}
+            </div>
+            <div style={{
+              fontSize: '9px',
+              fontWeight: 'normal',
+              opacity: 0.8
+            }}>
+              {Object.keys(nodeData.inputs || {}).length} entrées / {Object.keys(nodeData.outputs || {}).length} sorties
+              {!hasValues && <div style={{color: '#ff6b6b', marginTop: '2px'}}>Valeurs manquantes</div>}
             </div>
           </div>
         </foreignObject>
@@ -300,6 +327,26 @@ const Home = () => {
   const openFunctionDetails = (func) => {
     setSelectedFunction(func);
     setIsFunctionModalOpen(true);
+  };
+
+  const handleStartOpenJMS = async () => {
+    try {
+      const res = await fetch('http://localhost:8081/openjms/start', { method: 'POST' });
+      if (res.ok) alert('OpenJMS démarré !');
+      else alert('Erreur lors du démarrage');
+    } catch (err) {
+      alert('Erreur: ' + err.message);
+    }
+  };
+
+  const handleStopOpenJMS = async () => {
+    try {
+      const res = await fetch('http://localhost:8081/openjms/stop', { method: 'POST' });
+      if (res.ok) alert('OpenJMS arrêté !');
+      else alert('Erreur lors de l\'arrêt');
+    } catch (err) {
+      alert('Erreur: ' + err.message);
+    }
   };
 
   if (loading.rules || loading.scenarios) {
@@ -322,10 +369,8 @@ const Home = () => {
     );
   }
 
-  const scenario19 = scenarios.find((s) => s.scenarioId === 'scenario19');
-
   return (
-    <div className="home-page">
+    <div className="home-page" style={{ position: 'relative', minHeight: '100vh' }}>
       <div className="home-container">
         <header className="welcome-header">
           <h1>Analyse des Scénarios et Règles</h1>
@@ -358,21 +403,27 @@ const Home = () => {
                 .map((s) => (
                   <div
                     key={s.scenarioId}
-                    className={`scenario-item ${selectedScenario?.scenarioId === s.scenarioId ? "selected" : ""}`}
+                    className={`scenario-item ${selectedScenario?.scenarioId === s.scenarioId ? "selected" : ""} ${
+                      s.rootServiceName === "Aucun artefact.xml trouvé" ? "no-artefact" : ""
+                    }`}
                     onClick={() => openScenarioDetails(s)}
+                    title={s.rootServiceName === "Aucun artefact.xml trouvé" ? "Aucun artefact.xml trouvé" : s.rootServiceName}
                   >
                     {s.scenarioId.replace('scenario', '')}
+                    {s.rootServiceName === "Aucun artefact.xml trouvé" && (
+                      <span className="error-badge">!</span>
+                    )}
                   </div>
                 ))}
             </div>
           </section>
 
-          {scenario19 && (
+          {lastScenarioWithArtefact && (
             <section className="scenario19-large-tree">
-              <h2>Scénario en cours </h2>
+              <h2>Dernier Scénario avec Artefact ({lastScenarioWithArtefact.scenarioId})</h2>
               <div className="tree-container" style={{ height: '600px' }}>
                 <Tree
-                  data={transformScenarioToTree(scenario19)}
+                  data={transformScenarioToTree(lastScenarioWithArtefact)}
                   orientation="vertical"
                   pathFunc="straight"
                   translate={{ x: 300, y: 100 }}
@@ -503,7 +554,7 @@ const Home = () => {
             <div className="modal-container">
               <Dialog.Panel className="modal-panel">
                 <div className="modal-header">
-                  <Dialog.Title>Détails de la fonction: {selectedFunction?.name}</Dialog.Title>
+                  <Dialog.Title>Détails du service: {selectedFunction?.name}</Dialog.Title>
                   <button onClick={() => setIsFunctionModalOpen(false)}>
                     <XMarkIcon className="close-icon" />
                   </button>
@@ -511,50 +562,74 @@ const Home = () => {
                 <div className="modal-content">
                   <div className="properties-grid">
                     <div className="modal-section">
+                      <h4>Type: {selectedFunction?.type || 'Non spécifié'}</h4>
+                    </div>
+                    
+                    <div className="modal-section">
                       <h4>Entrées ({Object.keys(selectedFunction?.inputs || {}).length})</h4>
-                      {selectedFunction?.inputs ? (
+                      {selectedFunction?.inputs && Object.keys(selectedFunction.inputs).length > 0 ? (
                         <table className="property-table">
                           <thead>
                             <tr>
                               <th>Nom</th>
                               <th>Valeur</th>
+                              <th>État</th>
                             </tr>
                           </thead>
                           <tbody>
                             {Object.entries(selectedFunction.inputs).map(([key, value]) => (
                               <tr key={key}>
                                 <td className="property-key">{key}</td>
-                                <td>{value}</td>
+                                <td className={value ? "property-value" : "property-value empty"}>
+                                  {value || <span>(vide)</span>}
+                                </td>
+                                <td>
+                                  {value ? (
+                                    <span style={{color: '#10B981'}}>✓ Rempli</span>
+                                  ) : (
+                                    <span style={{color: '#EF4444'}}>✗ Vide</span>
+                                  )}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       ) : (
-                        <p>Aucune entrée</p>
+                        <p>Aucune entrée définie</p>
                       )}
                     </div>
 
                     <div className="modal-section">
                       <h4>Sorties ({Object.keys(selectedFunction?.outputs || {}).length})</h4>
-                      {selectedFunction?.outputs ? (
+                      {selectedFunction?.outputs && Object.keys(selectedFunction.outputs).length > 0 ? (
                         <table className="property-table">
                           <thead>
                             <tr>
                               <th>Nom</th>
                               <th>Valeur</th>
+                              <th>État</th>
                             </tr>
                           </thead>
                           <tbody>
                             {Object.entries(selectedFunction.outputs).map(([key, value]) => (
                               <tr key={key}>
                                 <td className="property-key">{key}</td>
-                                <td>{value}</td>
+                                <td className={value ? "property-value" : "property-value empty"}>
+                                  {value || <span>(vide)</span>}
+                                </td>
+                                <td>
+                                  {value ? (
+                                    <span style={{color: '#10B981'}}>✓ Rempli</span>
+                                  ) : (
+                                    <span style={{color: '#EF4444'}}>✗ Vide</span>
+                                  )}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       ) : (
-                        <p>Aucune sortie</p>
+                        <p>Aucune sortie définie</p>
                       )}
                     </div>
                   </div>
@@ -564,25 +639,70 @@ const Home = () => {
           </Dialog>
         </Transition>
       </div>
-      <RuleDetailsModal
-  isOpen={isDetailsModalOpen}
-  onClose={() => setIsDetailsModalOpen(false)}
-  selectedRule={selectedRule}
-  inputTypes={inputTypes}
-/>
 
-<RuleDefineModal
-  isOpen={isDefineModalOpen}
-  onClose={() => setIsDefineModalOpen(false)}
-  selectedRule={selectedRule}
-  inputTypes={inputTypes}
-  inputValues={inputValues}
-  setInputValues={setInputValues}
-  files={files}
-  handleFileChange={handleFileChange}
-  removeFile={removeFile}
-  handleSubmit={handleSubmit}
-/>
+      {/* Boutons Start/Stop OpenJMS en bas */}
+      <div 
+        className="openjms-buttons" 
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          gap: '1rem',
+          zIndex: 50,
+        }}
+      >
+        <button
+          onClick={handleStartOpenJMS}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          Start OpenJMS
+        </button>
+
+        <button
+          onClick={handleStopOpenJMS}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: '#ef4444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          Stop OpenJMS
+        </button>
+      </div>
+
+      <RuleDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        selectedRule={selectedRule}
+        inputTypes={inputTypes}
+      />
+
+      <RuleDefineModal
+        isOpen={isDefineModalOpen}
+        onClose={() => setIsDefineModalOpen(false)}
+        selectedRule={selectedRule}
+        inputTypes={inputTypes}
+        inputValues={inputValues}
+        setInputValues={setInputValues}
+        files={files}
+        handleFileChange={handleFileChange}
+        removeFile={removeFile}
+        handleSubmit={handleSubmit}
+      />
     </div>
   );
 };
