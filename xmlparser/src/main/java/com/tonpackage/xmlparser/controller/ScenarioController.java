@@ -2,6 +2,8 @@ package com.tonpackage.xmlparser.controller;
 
 import com.tonpackage.xmlparser.dto.ScenarioDTO;
 import com.tonpackage.xmlparser.service.ScenarioParsingService;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,9 +19,12 @@ public class ScenarioController {
         this.scenarioParsingService = scenarioParsingService;
     }
 
+    @Value("${parent.folder.path}") 
+    private String parentFolderPath;
+
+
     @GetMapping
     public List<ScenarioDTO> getAllScenarios() throws Exception {
-        String parentFolderPath = "C:\\Users\\Lenovo\\Desktop\\instance";
         return scenarioParsingService.parseAllScenarios(parentFolderPath);
     }
 }

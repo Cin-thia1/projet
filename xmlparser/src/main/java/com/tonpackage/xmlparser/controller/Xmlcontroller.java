@@ -4,6 +4,7 @@ import com.tonpackage.xmlparser.dto.RuleDTO;
 import com.tonpackage.xmlparser.service.XmlParsingService;
 import com.tonpackage.xmlparser.service.XmlWatchingService;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,15 +18,15 @@ public class Xmlcontroller {
     private final XmlParsingService xmlParsingService;
     private final XmlWatchingService xmlWatchingService;
 
-    // Le dossier XML (à garder si besoin pour appel direct parsing)
-    private static final String RULES_FOLDER = "C:\\Users\\Lenovo\\Desktop\\schemaExecution";
+    @Value("${xml.folder.path}") 
+    private String RULES_FOLDER;
 
     public Xmlcontroller(XmlParsingService xmlParsingService, XmlWatchingService xmlWatchingService) {
         this.xmlParsingService = xmlParsingService;
         this.xmlWatchingService = xmlWatchingService;
     }
 
-    // 1) Récupérer la liste de règles à partir du cache (plus rapide, recommandé)
+    // 1) Récupérer la liste de règles à partir du cache 
     @GetMapping
     public List<RuleDTO> getCachedRules() {
         return xmlWatchingService.getCachedRules();

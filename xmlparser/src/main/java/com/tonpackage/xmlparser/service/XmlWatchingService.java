@@ -4,6 +4,7 @@ import com.tonpackage.xmlparser.dto.RuleDTO;
 
 import jakarta.annotation.PostConstruct;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -18,14 +19,13 @@ public class XmlWatchingService {
 
     private final XmlParsingService xmlParsingService;
 
-    // Cache des règles extraites (List de RuleDTO) pour le contrôleur actuel
     private volatile List<RuleDTO> cachedRules = Collections.synchronizedList(new ArrayList<>());
 
-    // Cache du contenu XML brut, clé = nom fichier, valeur = contenu complet
+    
     private final Map<String, String> cachedXmlContents = new ConcurrentHashMap<>();
 
-    // Dossier à surveiller (à adapter si besoin)
-    private final String folderPath = "C:\\Users\\Lenovo\\Desktop\\schemaExecution";
+    @Value("${xml.folder.path}")
+    private  String folderPath ;
 
     public XmlWatchingService(XmlParsingService xmlParsingService) {
         this.xmlParsingService = xmlParsingService;
@@ -46,18 +46,14 @@ public class XmlWatchingService {
         });
     }
 
-    /**
-     * Charge à la fois :
-     * - le cache des règles (List<RuleDTO>)
-     * - le cache des fichiers XML bruts (Map<String, String>)
-     */
+  
     public synchronized void loadAll() {
         loadRules();
         loadXmlContents();
     }
 
     /**
-     * Charge le cache List<RuleDTO> via ton service de parsing existant
+     * Charge le cache List<RuleDTO> via le service de parsing existant
      */
     public synchronized void loadRules() {
         try {

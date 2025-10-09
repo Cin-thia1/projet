@@ -3,7 +3,6 @@ package com.tonpackage.xmlparser.service;
 import com.tonpackage.xmlparser.dto.RuleDTO;
 import org.w3c.dom.*;
 import org.springframework.stereotype.Service;
-import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.File;
 import java.util.ArrayList;
@@ -152,4 +151,5 @@ private int extractRuleNumberFromFileName(String fileName) {
         return 1; // Valeur par défaut
     }
 }
+
 }

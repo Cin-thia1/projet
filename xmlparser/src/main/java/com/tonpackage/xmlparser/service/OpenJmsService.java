@@ -1,175 +1,217 @@
 package com.tonpackage.xmlparser.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.Objects;
+
+import static java.nio.file.StandardOpenOption.*;
 
 @Service
 public class OpenJmsService {
 
-    private static final String MUTEX_FILE_PATH = "C:\\Users\\Lenovo\\Desktop\\mutex\\";
-    
-    public String startOpenJms() {
+    // === CONFIG ===
+    @Value("${file.folder.path}")
+    private  String MUTEX_DIR ;
+
+    @Value("${openjms.start}")
+    private String START_BAT;
+
+    @Value("${openjms.stop}")
+    private String STOP_BAT ;
+
+    // Fichiers
+    private static final String F_BACKEND = "backendRun.txt";
+    private static final String F_TOTO    = "toto.txt";      // 1 = send, 2 = receiver, "" = classique
+    private static final String F_WORK    = "work.txt";
+    private static final String F_BESOIN  = "besoin.txt";
+    private static final String F_INSTANCE= "instance.txt";
+
+    // Codes de mode
+    private static final String MODE_SEND_CODE     = "1";
+    private static final String MODE_RECEIVER_CODE = "2";
+
+    // === API PUBLIQUE (à appeler depuis ton contrôleur) ===
+
+    /** Démarrage classique, comme avant */
+    public synchronized String startOpenJms() {
         try {
-            System.out.println("Démarrage d'OpenJMS...");
-            
-            // Vérifier l'état des fichiers avant
-            System.out.println("État des fichiers avant opération:");
-            logFileStatus("backendRun.txt");
-            logFileStatus("toto.txt");
-            logFileStatus("work.txt");
-            logFileStatus("besoin.txt");
-            logFileStatus("instance.txt");
-            
-            // Créer ou écraser les fichiers de mutex
-            createOrOverwriteMutexFiles();
-            
-            // Vérifier l'état des fichiers après
-            System.out.println("État des fichiers après opération:");
-            logFileStatus("backendRun.txt");
-            logFileStatus("toto.txt");
-            logFileStatus("work.txt");
-            logFileStatus("besoin.txt");
-            logFileStatus("instance.txt");
-            
-            // Vérifier que backendRun.txt contient bien "yes"
-            String backendRunContent = readBackendRunFile();
-            if (!"yes".equals(backendRunContent)) {
-                return "ERREUR: backendRun.txt ne contient pas 'yes' après écriture. Contenu: '" + backendRunContent + "'";
-            }
-            
-            // Démarrer OpenJMS
-            System.out.println("Lancement du script OpenJMS...");
-            ProcessBuilder builder = new ProcessBuilder(
-                    "cmd.exe", "/c", "start", "C:\\Users\\Lenovo\\Desktop\\start-openjms-java8.bat"
-            );
-            builder.redirectErrorStream(true);
-            Process process = builder.start();
-            
-            // Attendre 10 secondes
-            System.out.println("Attente de 10 secondes...");
-            Thread.sleep(10000);
-            
-            return "SUCCÈS: OpenJMS démarré. backendRun.txt contient: '" + backendRunContent + "'";
-            
-        } catch (IOException | InterruptedException e) {
+            ensureDir();
+            // fichiers mutex (classique)
+            writeString(F_BACKEND, "yes");
+            writeString(F_TOTO, "");             // pas de mode
+            clearOthers();
+
+            // lance le script
+            launchBat(START_BAT);
+
+            // petite attente )
+            Thread.sleep(10_000);
+
+            return "SUCCÈS: OpenJMS démarré en mode classique. backendRun=yes";
+        } catch (Exception e) {
             e.printStackTrace();
-            return "ERREUR lors du démarrage d'OpenJMS : " + e.getMessage();
+            return "ERREUR startOpenJms: " + e.getMessage();
         }
     }
 
-    public String stopOpenJMS() {
+    /** Démarre (si besoin) puis passe en mode SEND (toto=1) */
+    public synchronized String startOpenJmsSend() {
+        return startWithModeInternal(MODE_SEND_CODE, "SEND");
+    }
+
+    /** Démarre (si besoin) puis passe en mode RECEIVER (toto=2) */
+    public synchronized String startOpenJmsReceiver() {
+        return startWithModeInternal(MODE_RECEIVER_CODE, "RECEIVER");
+    }
+
+    /** Arrêt : lance le .bat puis vide backendRun.txt */
+    public synchronized String stopOpenJms() {
         try {
-            System.out.println("Arrêt d'OpenJMS...");
-            ProcessBuilder builder = new ProcessBuilder(
-                    "cmd.exe", "/c", "start", "C:\\Users\\Lenovo\\Desktop\\stop-openjms-java8.bat"
-            );
-            builder.redirectErrorStream(true);
-            Process process = builder.start();
+            ensureDir();
+            launchBat(STOP_BAT);
+
+            // marquer comme arrêté
+            writeString(F_BACKEND, "");  // <-- enlève "yes"
             
-            return "SUCCÈS: Commande d'arrêt d'OpenJMS exécutée";
-            
-        } catch (IOException e) {
+            writeString(F_TOTO, "");
+            clearOthers();
+
+            return "SUCCÈS: Stop demandé. backendRun vidé.";
+        } catch (Exception e) {
             e.printStackTrace();
-            return "ERREUR lors de l'arrêt d'OpenJMS : " + e.getMessage();
+            return "ERREUR stopOpenJms: " + e.getMessage();
         }
     }
 
-    private void createOrOverwriteMutexFiles() throws IOException {
-        // S'assurer que le répertoire existe
-        Path mutexDir = Paths.get(MUTEX_FILE_PATH);
-        if (!Files.exists(mutexDir)) {
-            Files.createDirectories(mutexDir);
-            System.out.println("Création du répertoire mutex: " + MUTEX_FILE_PATH);
-        } else {
-            System.out.println("Répertoire mutex existe déjà: " + MUTEX_FILE_PATH);
-        }
-        
-        // Liste des fichiers à créer/écraser avec leur contenu
-        String[][] filesToCreate = {
-            {"backendRun.txt", "yes"},
-            {"toto.txt", ""},
-            {"work.txt", ""},
-            {"besoin.txt", ""},
-            {"instance.txt", ""}
-        };
-        
-        for (String[] fileInfo : filesToCreate) {
-            String fileName = fileInfo[0];
-            String fileContent = fileInfo[1];
-            
-            Path filePath = mutexDir.resolve(fileName);
-            
-            // Vérifier si le fichier existe déjà
-            boolean fileExisted = Files.exists(filePath);
-            
-            if (fileExisted) {
-                // Écraser le fichier existant
-                Files.write(filePath, 
-                           fileContent.getBytes(), 
-                           StandardOpenOption.TRUNCATE_EXISTING,
-                           StandardOpenOption.WRITE);
-                System.out.println("Fichier ÉCRASÉ: " + fileName + " avec contenu: '" + fileContent + "'");
-            } else {
-                // Créer le nouveau fichier
-                Files.write(filePath, 
-                           fileContent.getBytes(), 
-                           StandardOpenOption.CREATE,
-                           StandardOpenOption.WRITE);
-                System.out.println("Fichier CRÉÉ: " + fileName + " avec contenu: '" + fileContent + "'");
-            }
-        }
-    }
-    
-    private String readBackendRunFile() {
-        try {
-            Path backendRunFile = Paths.get(MUTEX_FILE_PATH + "backendRun.txt");
-            if (Files.exists(backendRunFile)) {
-                String content = Files.readString(backendRunFile).trim();
-                System.out.println("Contenu lu de backendRun.txt: '" + content + "'");
-                return content;
-            } else {
-                System.out.println("Fichier backendRun.txt n'existe pas");
-            }
-        } catch (IOException e) {
-            System.out.println("Erreur lecture backendRun.txt: " + e.getMessage());
-        }
-        return "";
-    }
-    
-    private void logFileStatus(String fileName) {
-        try {
-            Path filePath = Paths.get(MUTEX_FILE_PATH + fileName);
-            if (Files.exists(filePath)) {
-                String content = Files.readString(filePath).trim();
-                System.out.println(" - " + fileName + ": EXISTE, contenu: '" + content + "'");
-            } else {
-                System.out.println(" - " + fileName + ": N'EXISTE PAS");
-            }
-        } catch (IOException e) {
-            System.out.println(" - " + fileName + ": ERREUR LECTURE: " + e.getMessage());
-        }
-    }
+    // === Implémentation interne ===
 
+    private String startWithModeInternal(String modeCode, String humanLabel) {
+    try {
+        ensureDir();
 
-    public String stopOpenJms() {
-        try {
-            ProcessBuilder builder = new ProcessBuilder(
-                    "cmd.exe", "/c", "start", "C:\\Users\\Lenovo\\Desktop\\stop-openjms-java8.bat"
-            );
-            builder.redirectErrorStream(true);
-            Process process = builder.start();
-            
-            return "Commande d'arrêt d'OpenJMS exécutée";
-            
-        } catch (IOException e) {
-            e.printStackTrace();
-            return "Erreur lors de l'arrêt d'OpenJMS : " + e.getMessage();
+        // A. S'assurer qu'OpenJMS est démarré (backendRun=yes)
+        if (!isRunning()) {
+            writeString(F_BACKEND, "yes"); // marque démarré
+            writeString(F_TOTO, "");       // pas de mode pendant le boot
+            clearOthers();                  // work/besoin/instance = ""
+
+            launchBat(START_BAT);          // lance OpenJMS
+            Thread.sleep(10_000);          // optionnel: laisser le process partir
         }
+
+        // B. Poser le mode puis patienter 4s
+        writeString(F_TOTO, modeCode);     // 1 = send, 2 = receiver
+        clearOthers();                     // comme demandé: les autres restent vides
+
+        Thread.sleep(4_000);               // <-- attente de 4 secondes
+
+        return "SUCCÈS: OpenJMS en mode " + humanLabel +
+               " (backendRun=" + readTrim(F_BACKEND) +
+               ", toto=" + readTrim(F_TOTO) + ")";
+    } catch (Exception e) {
+        e.printStackTrace();
+        return "ERREUR startWithMode(" + humanLabel + "): " + e.getMessage();
     }
 }
 
-   
+
+    private boolean isRunning() {
+        String v = readTrim(F_BACKEND);
+        return "yes".equalsIgnoreCase(v);
+    }
+
+    private void clearOthers() throws IOException {
+        writeString(F_WORK, "");
+        writeString(F_BESOIN, "");
+        writeString(F_INSTANCE, "");
+    }
+
+    private void launchBat(String batPath) throws IOException {
+        ProcessBuilder builder = new ProcessBuilder("cmd.exe", "/c", "start", batPath);
+        builder.redirectErrorStream(true);
+        builder.start();
+    }
+
+    private void ensureDir() throws IOException {
+        Path dir = Paths.get(MUTEX_DIR);
+        if (Files.notExists(dir)) {
+            Files.createDirectories(dir);
+        }
+    }
+
+    private void writeString(String fileName, String content) throws IOException {
+        Path p = Paths.get(MUTEX_DIR).resolve(fileName);
+        byte[] bytes = Objects.toString(content, "").getBytes(StandardCharsets.UTF_8);
+        if (Files.exists(p)) {
+            Files.write(p, bytes, TRUNCATE_EXISTING, WRITE);
+        } else {
+            Files.write(p, bytes, CREATE, WRITE);
+        }
+    }
+
+    private String readTrim(String fileName) {
+        try {
+            Path p = Paths.get(MUTEX_DIR).resolve(fileName);
+            if (Files.exists(p)) {
+                return Files.readString(p, StandardCharsets.UTF_8).trim();
+            }
+        } catch (IOException ignored) {}
+        return "";
+    }
+
+//  sélectionner une règle ---
+public synchronized String selectRule(String ruleNumber) {
+    try {
+        ensureDir();
+
+        // toto = numéro de règle, besoin = vide
+        writeString(F_TOTO, ruleNumber == null ? "" : ruleNumber.trim());
+        writeString(F_BESOIN, "");
+        // (optionnel) vider aussi work/instance 
+        writeString(F_WORK, "");
+        writeString(F_INSTANCE, "");
+
+        Thread.sleep(4_000); // attendre 4s
+
+        return "OK: rule selected -> toto='" + readTrim(F_TOTO) + "', besoin='"
+                + readTrim(F_BESOIN) + "'";
+    } catch (Exception e) {
+        e.printStackTrace();
+        return "ERR selectRule: " + e.getMessage();
+    }
+}
+
+//  définir un paramètre ---
+public synchronized String defineParameter(String paramValue) {
+    try {
+        ensureDir();
+
+        // toto = valeur du paramètre, besoin = vide
+        writeString(F_TOTO, paramValue == null ? "" : paramValue.trim());
+        writeString(F_BESOIN, "");
+        // idem : garder les autres vides
+        writeString(F_WORK, "");
+        writeString(F_INSTANCE, "");
+
+        Thread.sleep(4_000); // attendre 4s
+
+        return "OK: parameter defined -> toto='" + readTrim(F_TOTO) + "', besoin='"
+                + readTrim(F_BESOIN) + "'";
+    } catch (Exception e) {
+        e.printStackTrace();
+        return "ERR defineParameter: " + e.getMessage();
+    }
+}
+
+
+
+public String status() {
+    return String.format("backendRun='%s'; toto='%s'; work='%s'; besoin='%s'; instance='%s'",
+            readTrim(F_BACKEND), readTrim(F_TOTO), readTrim(F_WORK), readTrim(F_BESOIN), readTrim(F_INSTANCE));
+}
+
+}
