@@ -1,9 +1,12 @@
 package com.tonpackage.xmlparser.service;
 
+import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Objects;
@@ -13,9 +16,9 @@ import static java.nio.file.StandardOpenOption.*;
 @Service
 public class OpenJmsService {
 
-    // === CONFIG ===
+    // === CONFIG ===//
     @Value("${file.folder.path}")
-    private  String MUTEX_DIR ;
+    private   String MUTEX_DIR ;
 
     @Value("${openjms.start}")
     private String START_BAT;
@@ -39,14 +42,17 @@ public class OpenJmsService {
     /** Démarrage classique, comme avant */
     public synchronized String startOpenJms() {
         try {
-            ensureDir();
+            System.out.println("hello");
+            launchBackend("C:/Users/Lenovo/Desktop/openjms-0.7.7-beta-1");
+        
+            //ensureDir();
             // fichiers mutex (classique)
-            writeString(F_BACKEND, "yes");
-            writeString(F_TOTO, "");             // pas de mode
-            clearOthers();
+            //writeString(F_BACKEND, "yes");
+            ////writeString(F_TOTO, "");             // pas de mode
+            //clearOthers();
 
             // lance le script
-            launchBat(START_BAT);
+            //launchBat(START_BAT);
 
             // petite attente )
             Thread.sleep(10_000);
@@ -91,6 +97,7 @@ public class OpenJmsService {
 
     private String startWithModeInternal(String modeCode, String humanLabel) {
     try {
+
         ensureDir();
 
         // A. S'assurer qu'OpenJMS est démarré (backendRun=yes)
@@ -143,8 +150,11 @@ public class OpenJmsService {
         }
     }
 
-    private void writeString(String fileName, String content) throws IOException {
+    private  void writeString(String fileName, String content) throws IOException {
+       System.out.println("fichiers "+MUTEX_DIR);
+       System.out.println("fileName "+fileName);
         Path p = Paths.get(MUTEX_DIR).resolve(fileName);
+
         byte[] bytes = Objects.toString(content, "").getBytes(StandardCharsets.UTF_8);
         if (Files.exists(p)) {
             Files.write(p, bytes, TRUNCATE_EXISTING, WRITE);
@@ -213,5 +223,70 @@ public String status() {
     return String.format("backendRun='%s'; toto='%s'; work='%s'; besoin='%s'; instance='%s'",
             readTrim(F_BACKEND), readTrim(F_TOTO), readTrim(F_WORK), readTrim(F_BESOIN), readTrim(F_INSTANCE));
 }
+
+public  void launchBackend(String openJMSHOME) {
+
+        try {
+            ////Only windows
+            
+            boolean result = false;
+            Process p0 = Runtime.getRuntime().exec("cmd /c jps -v | findstr GAGImplementation.jar");
+            
+            InputStreamReader reader = new InputStreamReader(p0.getInputStream());
+            BufferedReader br = new BufferedReader(reader);
+            String ligne=null;
+            while ( (ligne = br.readLine()) != null){
+                    result = true;
+                    System.err.println("ligneligneligne "+ligne);
+                    break;
+            }
+            
+            if(result)
+                Runtime.getRuntime().exec("cmd /c taskkill /F /PID "+ligne.split(" ")[0]);
+            
+        } catch (IOException ex) {
+
+            ex.printStackTrace();
+        }
+        
+        //String[] cmd = {"/bin/sh", "-c", gagconfigFile.getMutexFile()+"launchBackend.sh"};
+        String[] cmd = {"cmd.exe", "/c", MUTEX_DIR+"launchBackend.bat"};
+        try {
+            System.out.println("--------Start backend JMS");
+          
+            //willy Process p = Runtime.getRuntime().exec("cmd /c "+gagconfigFile.getMutexFile()+"launchBackend.bat");
+            
+            new Thread() {
+                @Override public void run() {
+                    String[] cmd = {"cmd.exe", "/c", MUTEX_DIR+"launchBackend.bat"};
+                }
+                }.run();
+            
+
+            /* Lancement du thread de récupération de la sortie standard */
+            //willy new RecuperationSorties(p.getInputStream()).start();
+
+            /* Lancement du thread de récupération de la sortie en erreur */
+            //willy new RecuperationSorties(p.getErrorStream()).start();
+            writeString(F_BACKEND, "yes");
+            writeString(F_TOTO, "");
+            writeString(F_WORK, "");
+            writeString(F_BESOIN, "");
+            writeString(F_INSTANCE, "");
+
+            //int exitValue = p.waitFor(); 
+            Thread.sleep(10000);
+            //willy p.getOutputStream().close();
+            //willy p.getInputStream().close();
+
+            System.out.println("--------End Start Backend JMS \n");
+        } catch (IOException ex) {
+            
+            ex.printStackTrace();
+        } catch (InterruptedException ex) {
+            
+            ex.printStackTrace();
+        }
+    }
 
 }
